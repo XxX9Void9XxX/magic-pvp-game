@@ -8,39 +8,46 @@ const server = http.createServer(app);
 const io = new Server(server);
 
 app.use(express.static(path.join(__dirname, "../client")));
-
-app.get("*", (req, res) => {
+app.get("*", (req,res) => {
   res.sendFile(path.join(__dirname, "../client/index.html"));
 });
 
 const players = {};
 
-io.on("connection", (socket) => {
-  console.log("Player connected:", socket.id);
-
-  players[socket.id] = { x: 100, y: 100, id: socket.id };
+io.on("connection", socket => {
+  players[socket.id] = {
+    x: 100, y: 100, id: socket.id,
+    health: 100
+  };
   io.emit("players", players);
 
-  socket.on("move", (data) => {
+  socket.on("move", d => {
     if (players[socket.id]) {
-      players[socket.id].x = data.x;
-      players[socket.id].y = data.y;
+      players[socket.id].x = d.x;
+      players[socket.id].y = d.y;
       io.emit("players", players);
     }
   });
 
-  socket.on("castSpell", (spell) => {
-    io.emit("spellCast", { id: socket.id, spell });
+  socket.on("castSpell", s => {
+    io.emit("spellCast", { id: socket.id, spell: s });
+  });
+
+  socket.on("hitPlayer", id => {
+    if (players[id]) {
+      players[id].health -= 10;
+      if (players[id].health <= 0) {
+        io.emit("playerDied", id);
+        delete players[id];
+      }
+      io.emit("players", players);
+    }
   });
 
   socket.on("disconnect", () => {
     delete players[socket.id];
     io.emit("players", players);
-    console.log("Player disconnected:", socket.id);
   });
 });
 
-const port = process.env.PORT || 3000;
-server.listen(port, () => {
-  console.log("Server listening on", port);
-});
+server.listen(process.env.PORT || 3000);
