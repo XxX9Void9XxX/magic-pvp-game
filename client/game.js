@@ -1,5 +1,7 @@
+// Connect to server (auto‑detect or replace with your Render URL)
 const socket = io();
 
+// Phaser game configuration
 const config = {
   type: Phaser.AUTO,
   width: 800,
@@ -8,6 +10,7 @@ const config = {
     default: "arcade",
   },
   scene: {
+    preload,
     create,
     update,
   },
@@ -19,16 +22,44 @@ let players = {};
 let playerShapes = {};
 let spells = [];
 
-function create() {
-  this.cursors = this.input.keyboard.createCursorKeys();
+function preload() {
+  this.input.mouse.disableContextMenu(); // prevent right‑click menu
+}
 
+function create() {
+  // Movement keys
+  this.keys = this.input.keyboard.addKeys({
+    up: "W",
+    down: "S",
+    left: "A",
+    right: "D",
+  });
+
+  // When server sends updated players
   socket.on("players", (serverPlayers) => {
     players = serverPlayers;
     drawPlayers(this);
   });
 
+  // When someone casts a spell
   socket.on("spellCast", (data) => {
     createSpell(this, data.id, data.spell);
+  });
+
+  // On pointer click, cast a spell
+  this.input.on("pointerdown", (pointer) => {
+    const myP = players[socket.id];
+    if (!myP) return;
+
+    const dirX = pointer.worldX - myP.x;
+    const dirY = pointer.worldY - myP.y;
+
+    socket.emit("castSpell", {
+      x: myP.x,
+      y: myP.y,
+      vx: dirX,
+      vy: dirY,
+    });
   });
 }
 
@@ -36,23 +67,25 @@ function update() {
   const myPlayer = players[socket.id];
   if (!myPlayer) return;
 
-  if (this.cursors.left.isDown) myPlayer.x -= 2;
-  if (this.cursors.right.isDown) myPlayer.x += 2;
-  if (this.cursors.up.isDown) myPlayer.y -= 2;
-  if (this.cursors.down.isDown) myPlayer.y += 2;
+  // WASD movement
+  if (this.keys.left.isDown) myPlayer.x -= 3;
+  if (this.keys.right.isDown) myPlayer.x += 3;
+  if (this.keys.up.isDown) myPlayer.y -= 3;
+  if (this.keys.down.isDown) myPlayer.y += 3;
 
+  // send movement
   socket.emit("move", { x: myPlayer.x, y: myPlayer.y });
-
-  if (this.input.keyboard.checkDown(this.cursors.space, 250)) {
-    socket.emit("castSpell", { x: myPlayer.x, y: myPlayer.y });
-  }
 
   updatePlayerShapes();
   updateSpells();
 }
 
-// Player helpers
+/* ------------------------- *
+ *   PLAYER RENDERING HELPERS
+ * ------------------------- */
+
 function drawPlayers(scene) {
+  // Remove old shapes
   for (const id in playerShapes) {
     playerShapes[id].destroy();
   }
@@ -76,21 +109,32 @@ function updatePlayerShapes() {
   }
 }
 
-// Spell helpers
+/* ------------------------ *
+ *   SPELL RENDERING HELPERS
+ * ------------------------ */
+
 function createSpell(scene, id, spellData) {
   const circle = scene.add.circle(spellData.x, spellData.y, 8, 0x0000ff);
   scene.physics.add.existing(circle);
   spells.push(circle);
 
-  scene.tweens.add({
-    targets: circle,
-    x: spellData.x + 200,
-    duration: 600,
-    onComplete: () => {
+  const speed = 400;
+  const mag = Math.sqrt(spellData.vx * spellData.vx + spellData.vy * spellData.vy);
+  const velX = (spellData.vx / mag) * speed;
+  const velY = (spellData.vy / mag) * speed;
+
+  circle.body.setVelocity(velX, velY);
+
+  // destroy after 1 second
+  scene.time.addEvent({
+    delay: 1000,
+    callback: () => {
       circle.destroy();
       spells = spells.filter((s) => s !== circle);
     },
   });
 }
 
-function updateSpells() {}
+function updateSpells() {
+  // Could add collision or lifetime logic here
+}
