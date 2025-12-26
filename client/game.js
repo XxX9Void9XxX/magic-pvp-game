@@ -27,12 +27,12 @@ function create() {
   // Receive all players from server
   socket.on("players", (serverPlayers) => {
     players = serverPlayers;
-    drawPlayers(this);
+    drawPlayers(this);   // **calls Player Rendering Helpers**
   });
 
   // When a spell is cast
   socket.on("spellCast", (data) => {
-    createSpell(this, data.id, data.spell);
+    createSpell(this, data.id, data.spell);  // **calls Spell Rendering Helpers**
   });
 }
 
@@ -53,6 +53,60 @@ function update() {
     socket.emit("castSpell", { x: myPlayer.x, y: myPlayer.y });
   }
 
-  updatePlayerShapes();
+  // Update positions of shapes every frame
+  updatePlayerShapes();  
   updateSpells();
+}
+
+/* ------------------------- *
+ *   PLAYER RENDERING HELPERS
+ * ------------------------- */
+
+function drawPlayers(scene) {
+  // Remove old shapes
+  for (const id in playerShapes) {
+    playerShapes[id].destroy();
+  }
+  playerShapes = {};
+
+  Object.values(players).forEach((p) => {
+    const color = p.id === socket.id ? 0x00ff00 : 0xff0000; // green = you, red = others
+    const circle = scene.add.circle(p.x, p.y, 16, color);
+    playerShapes[p.id] = circle;
+  });
+}
+
+function updatePlayerShapes() {
+  for (const id in players) {
+    const p = players[id];
+    const shape = playerShapes[id];
+    if (shape) {
+      shape.x = p.x;
+      shape.y = p.y;
+    }
+  }
+}
+
+/* ------------------------ *
+ *   SPELL RENDERING HELPERS
+ * ------------------------ */
+
+function createSpell(scene, id, spellData) {
+  const circle = scene.add.circle(spellData.x, spellData.y, 8, 0x0000ff);
+  scene.physics.add.existing(circle);
+  spells.push(circle);
+
+  scene.tweens.add({
+    targets: circle,
+    x: spellData.x + 200,   // example travel distance
+    duration: 600,
+    onComplete: () => {
+      circle.destroy();
+      spells = spells.filter((s) => s !== circle);
+    },
+  });
+}
+
+function updateSpells() {
+  // If you want collision or lifetime logic later, do it here
 }
