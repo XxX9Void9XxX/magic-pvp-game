@@ -1,7 +1,5 @@
-// Connect to server (auto-detect or replace with your Render URL)
 const socket = io();
 
-// Phaser game configuration
 const config = {
   type: Phaser.AUTO,
   width: 800,
@@ -24,15 +22,13 @@ let spells = [];
 function create() {
   this.cursors = this.input.keyboard.createCursorKeys();
 
-  // Receive all players from server
   socket.on("players", (serverPlayers) => {
     players = serverPlayers;
-    drawPlayers(this);   // **calls Player Rendering Helpers**
+    drawPlayers(this);
   });
 
-  // When a spell is cast
   socket.on("spellCast", (data) => {
-    createSpell(this, data.id, data.spell);  // **calls Spell Rendering Helpers**
+    createSpell(this, data.id, data.spell);
   });
 }
 
@@ -40,7 +36,6 @@ function update() {
   const myPlayer = players[socket.id];
   if (!myPlayer) return;
 
-  // Movement
   if (this.cursors.left.isDown) myPlayer.x -= 2;
   if (this.cursors.right.isDown) myPlayer.x += 2;
   if (this.cursors.up.isDown) myPlayer.y -= 2;
@@ -48,29 +43,23 @@ function update() {
 
   socket.emit("move", { x: myPlayer.x, y: myPlayer.y });
 
-  // Cast a spell with SPACE
   if (this.input.keyboard.checkDown(this.cursors.space, 250)) {
     socket.emit("castSpell", { x: myPlayer.x, y: myPlayer.y });
   }
 
-  // Update positions of shapes every frame
-  updatePlayerShapes();  
+  updatePlayerShapes();
   updateSpells();
 }
 
-/* ------------------------- *
- *   PLAYER RENDERING HELPERS
- * ------------------------- */
-
+// Player helpers
 function drawPlayers(scene) {
-  // Remove old shapes
   for (const id in playerShapes) {
     playerShapes[id].destroy();
   }
   playerShapes = {};
 
   Object.values(players).forEach((p) => {
-    const color = p.id === socket.id ? 0x00ff00 : 0xff0000; // green = you, red = others
+    const color = p.id === socket.id ? 0x00ff00 : 0xff0000;
     const circle = scene.add.circle(p.x, p.y, 16, color);
     playerShapes[p.id] = circle;
   });
@@ -87,10 +76,7 @@ function updatePlayerShapes() {
   }
 }
 
-/* ------------------------ *
- *   SPELL RENDERING HELPERS
- * ------------------------ */
-
+// Spell helpers
 function createSpell(scene, id, spellData) {
   const circle = scene.add.circle(spellData.x, spellData.y, 8, 0x0000ff);
   scene.physics.add.existing(circle);
@@ -98,7 +84,7 @@ function createSpell(scene, id, spellData) {
 
   scene.tweens.add({
     targets: circle,
-    x: spellData.x + 200,   // example travel distance
+    x: spellData.x + 200,
     duration: 600,
     onComplete: () => {
       circle.destroy();
@@ -107,6 +93,4 @@ function createSpell(scene, id, spellData) {
   });
 }
 
-function updateSpells() {
-  // If you want collision or lifetime logic later, do it here
-}
+function updateSpells() {}
